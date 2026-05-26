@@ -1,4 +1,3 @@
-app.py
 import os
 import io
 import json
@@ -140,11 +139,11 @@ MAIN_HTML = """<!DOCTYPE html>
   .btn-danger { background:rgba(247,79,106,0.15); color:var(--danger); border:1px solid rgba(247,79,106,0.3); }
   .progress-section { display:none; flex-direction:column; gap:12px; }
   .progress-section.visible { display:flex; }
-  .progress-step { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--surface2); border-radius:10px; font-size:14px; opacity:0.4; transition:opacity 0.3s; }
-  .progress-step.active { opacity:1; }
-  .progress-step.done { opacity:1; color:var(--success); }
-  .step-icon { font-size:18px; width:24px; text-align:center; }
-  .spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  .progress-step { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--surface2); border-radius:10px; font-size:14px; opacity:0.4; transition:all 0.3s ease; border:1px solid transparent; }
+  .progress-step.active { opacity:1; background:linear-gradient(135deg,rgba(79,142,247,0.1),rgba(124,106,247,0.1)); border:1px solid rgba(79,142,247,0.3); }
+  .progress-step.done { opacity:1; color:var(--success); background:rgba(79,202,122,0.08); border:1px solid rgba(79,202,122,0.2); }
+  .step-icon { font-size:20px; width:28px; text-align:center; font-weight:600; }
+  .spinner { width:20px; height:20px; border:2.5px solid rgba(79,142,247,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; box-shadow:0 0 8px rgba(79,142,247,0.3); }
   @keyframes spin{to{transform:rotate(360deg);}}
   .result-section { display:none; }
   .result-section.visible { display:flex; flex-direction:column; gap:12px; }
@@ -200,8 +199,8 @@ MAIN_HTML = """<!DOCTYPE html>
   <div class="error-msg" id="errorMsg"></div>
   <div class="card progress-section" id="progressSection">
     <div class="card-title">Processing...</div>
-    <div class="progress-step" id="step1"><span class="step-icon">🎙️</span><span>Converting speech to text</span></div>
-    <div class="progress-step" id="step2"><span class="step-icon">🧠</span><span>Creating summary and key points</span></div>
+    <div class="progress-step" id="step1"><span class="step-icon">🎙️</span><span style="font-weight:500;">Converting speech to text</span></div>
+    <div class="progress-step" id="step2" style="padding:16px 18px;"><span class="step-icon">⚡</span><span style="font-weight:500;">Creating summary and key points</span></div>
   </div>
   <div class="result-section" id="resultSection">
     <div class="card">
