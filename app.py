@@ -20,7 +20,7 @@ OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")
 UPSTASH_URL       = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 UPSTASH_TOKEN     = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 RESEND_API_KEY    = os.environ.get("RESEND_API_KEY", "")
-ADMIN_EMAIL       = os.environ.get("ADMIN_EMAIL", "")
+ADMIN_EMAIL       = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.fi")  # ✅ KORJATTU: Lisätty oletus-arvo
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
@@ -756,15 +756,22 @@ def health():
 
 def ensure_admin():
     try:
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.fi")  # ✅ KORJATTU: Lisätty oletus-arvo
         admin_hash = os.environ.get("ADMIN_PASSWORD_HASH", "b473debca72c06e903436ef305caa697ae7c50a03025e668a6a75eef96afe10f")
-        existing = redis_get(f"mm:user:{ADMIN_EMAIL}")
+        existing = redis_get(f"mm:user:{admin_email}")
         if not existing:
-            redis_set(f"mm:user:{ADMIN_EMAIL}", {"name": "Admin", "email": ADMIN_EMAIL, "password": admin_hash, "clinic": "", "status": "approved", "role": "admin", "created": datetime.now().isoformat()})
-            log.info(f"Admin created: {ADMIN_EMAIL}")
-        elif existing.get("status") != "approved":
+            redis_set(f"mm:user:{admin_email}", {
+                "name": "Admin", "email": admin_email,
+                "password": admin_hash, "clinic": "",
+                "status": "approved", "role": "admin",
+                "created": datetime.now().isoformat()
+            })
+            log.info(f"Admin created: {admin_email}")
+        elif existing.get("status") != "approved" or existing.get("password") != admin_hash:  # ✅ PARANNETTU: Tarkistetaan myös password
             existing["status"] = "approved"
             existing["password"] = admin_hash
-            redis_set(f"mm:user:{ADMIN_EMAIL}", existing)
+            redis_set(f"mm:user:{admin_email}", existing)
+            log.info(f"Admin fixed: {admin_email}")
     except Exception as e:
         log.error(f"ensure_admin error: {e}")
 
@@ -775,7 +782,3 @@ with app.app_context():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
-
-
