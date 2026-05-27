@@ -15,12 +15,13 @@ app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
+# API Keys
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")
-UPSTASH_URL       = os.environ.get("UPSTASH_REDIS_REST_URL", "")
-UPSTASH_TOKEN     = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
-RESEND_API_KEY    = os.environ.get("RESEND_API_KEY", "")
-ADMIN_EMAIL       = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.fi")  # ✅ KORJATTU: Lisätty oletus-arvo
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
+UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.app")
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLIC_KEY = os.environ.get("STRIPE_PUBLIC_KEY", "")
@@ -29,6 +30,10 @@ REDIS_HEADERS = {
     "Authorization": f"Bearer {UPSTASH_TOKEN}",
     "Content-Type": "application/json"
 }
+
+# ============================================================================
+# REDIS FUNCTIONS
+# ============================================================================
 
 def redis_get(key):
     try:
@@ -52,6 +57,10 @@ def redis_keys(pattern):
         return data.get("result", [])
     except:
         return []
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -86,6 +95,101 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# ============================================================================
+# PROMPT TEMPLATES - MULTILINGUAL
+# ============================================================================
+
+MEETING_SYSTEM = {
+    "fi": """Olet ammattimainen kokousmuistionpitäjä. Sinulle annetaan kokouksen transkriptio.
+Luo siitä ammattimainen yhteenveto JSON-muodossa:
+
+{
+  "summary": "Lyhyt yhteenveto kokouksesta (3-6 lausetta)",
+  "key_points": [
+    "Tärkeä piste 1",
+    "Tärkeä piste 2"
+  ],
+  "action_items": [
+    "Toimenpide 1 - kuka tekee",
+    "Toimenpide 2 - kuka tekee"
+  ]
+}
+
+Vastaa VAIN JSON-objektilla ilman muuta tekstiä.""",
+    
+    "en": """You are a professional meeting scribe. You are given a meeting transcript.
+Create a professional summary in JSON format:
+
+{
+  "summary": "Brief summary of the meeting (3-6 sentences)",
+  "key_points": [
+    "Important point 1",
+    "Important point 2"
+  ],
+  "action_items": [
+    "Action item 1 - who does it",
+    "Action item 2 - who does it"
+  ]
+}
+
+Respond ONLY with JSON object, no other text.""",
+    
+    "sv": """Du är en professionell mötessekreterare. Du får en mötesutskrift.
+Skapa en professionell sammanfattning i JSON-format:
+
+{
+  "summary": "Kort sammanfattning av mötet (3-6 meningar)",
+  "key_points": [
+    "Viktig punkt 1",
+    "Viktig punkt 2"
+  ],
+  "action_items": [
+    "Åtgärdspunkt 1 - vem gör det",
+    "Åtgärdspunkt 2 - vem gör det"
+  ]
+}
+
+Svara ENDAST med JSON-objekt, ingen annan text.""",
+    
+    "de": """Sie sind ein professioneller Besprechungsprotokollierer. Ihnen wird ein Besprechungstranskript gegeben.
+Erstellen Sie eine professionelle Zusammenfassung im JSON-Format:
+
+{
+  "summary": "Kurze Zusammenfassung des Meetings (3-6 Sätze)",
+  "key_points": [
+    "Wichtiger Punkt 1",
+    "Wichtiger Punkt 2"
+  ],
+  "action_items": [
+    "Maßnahme 1 - wer führt sie durch",
+    "Maßnahme 2 - wer führt sie durch"
+  ]
+}
+
+Antworten Sie NUR mit JSON-Objekt, kein anderer Text.""",
+    
+    "ar": """أنت محرر اجتماعات احترافي. لديك نص اجتماع.
+أنشئ ملخص احترافي بصيغة JSON:
+
+{
+  "summary": "ملخص موجز للاجتماع (3-6 جمل)",
+  "key_points": [
+    "نقطة مهمة 1",
+    "نقطة مهمة 2"
+  ],
+  "action_items": [
+    "عنصر إجراء 1 - من يقوم به",
+    "عنصر إجراء 2 - من يقوم به"
+  ]
+}
+
+رد فقط مع كائن JSON، لا نص آخر."""
+}
+
+# ============================================================================
+# HTML TEMPLATES
+# ============================================================================
+
 MAIN_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -110,6 +214,9 @@ MAIN_HTML = """<!DOCTYPE html>
   .nav-links { margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
   .nav-link { font-size:13px; color:var(--text2); text-decoration:none; padding:6px 12px; border-radius:8px; background:var(--surface2); border:1px solid var(--border); }
   .container { width:100%; max-width:480px; padding:24px 16px; flex:1; display:flex; flex-direction:column; gap:16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:8px; }
+  .tab-btn { flex:1; padding:12px; border-radius:10px; border:1px solid var(--border); background:var(--surface2); color:var(--text2); font-weight:600; cursor:pointer; transition:all 0.2s; }
+  .tab-btn.active { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; border-color:var(--accent); }
   .card { background:var(--surface); border-radius:16px; padding:20px; border:1px solid var(--border); }
   .card-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text2); margin-bottom:14px; }
   input, select, textarea { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:13px 16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; width:100%; outline:none; transition:border-color 0.2s; }
@@ -136,14 +243,13 @@ MAIN_HTML = """<!DOCTYPE html>
   .btn:disabled { opacity:0.45; cursor:not-allowed; }
   .btn-primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; }
   .btn-secondary { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
-  .btn-danger { background:rgba(247,79,106,0.15); color:var(--danger); border:1px solid rgba(247,79,106,0.3); }
   .progress-section { display:none; flex-direction:column; gap:12px; }
   .progress-section.visible { display:flex; }
-  .progress-step { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--surface2); border-radius:10px; font-size:14px; opacity:0.4; transition:all 0.3s ease; border:1px solid transparent; }
+  .progress-step { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--surface2); border-radius:10px; font-size:14px; opacity:0.4; transition:all 0.3s; border:1px solid transparent; }
   .progress-step.active { opacity:1; background:linear-gradient(135deg,rgba(79,142,247,0.1),rgba(124,106,247,0.1)); border:1px solid rgba(79,142,247,0.3); }
   .progress-step.done { opacity:1; color:var(--success); background:rgba(79,202,122,0.08); border:1px solid rgba(79,202,122,0.2); }
   .step-icon { font-size:20px; width:28px; text-align:center; font-weight:600; }
-  .spinner { width:20px; height:20px; border:2.5px solid rgba(79,142,247,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; box-shadow:0 0 8px rgba(79,142,247,0.3); }
+  .spinner { width:20px; height:20px; border:2.5px solid rgba(79,142,247,0.2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.7s linear infinite; }
   @keyframes spin{to{transform:rotate(360deg);}}
   .result-section { display:none; }
   .result-section.visible { display:flex; flex-direction:column; gap:12px; }
@@ -158,176 +264,420 @@ MAIN_HTML = """<!DOCTYPE html>
   .copy-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 14px; color:var(--text2); font-size:13px; cursor:pointer; font-family:'DM Sans',sans-serif; }
   .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
   .tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:var(--text2); }
-  .brief-section { display:none; flex-direction:column; gap:8px; margin-top:8px; }
-  .brief-section.visible { display:flex; }
-  .brief-box { background:var(--surface2); border-radius:10px; padding:14px; font-size:14px; line-height:1.6; color:var(--text); border:1px solid var(--accent); white-space:pre-wrap; }
+  .tab-content { display:none; }
+  .tab-content.active { display:block; }
 </style>
 </head>
 <body>
 <div class="header">
   <div class="logo">🤝</div>
-  <div class="header-text"><h1>MediMeeting</h1><p>Record and summarize</p></div>
+  <div class="header-text"><h1>MediMeeting</h1><p>Meetings & Calls</p></div>
   <div class="nav-links">
     <a href="/pricing" class="nav-link">💳 Pricing</a>
     <a href="/logout" class="nav-link">Sign out</a>
   </div>
 </div>
+
 <div class="container">
-  <div class="card">
-    <div class="card-title">Meeting details (optional)</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <input type="text" id="meetingTitle" placeholder="Topic / title" />
-      <input type="text" id="participants" placeholder="Participants (optional)" />
-      <select id="meetingLanguage">
-        <option value="en">🇬🇧 English</option>
-        <option value="fi">🇫🇮 Suomi</option>
-        <option value="sv">🇸🇪 Svenska</option>
-        <option value="de">🇩🇪 Deutsch</option>
-        <option value="ar">🇸🇦 العربية</option>
-      </select>
-    </div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('meeting')">🤝 Meeting</button>
+    <button class="tab-btn" onclick="switchTab('call')">☎️ Call</button>
   </div>
-  <div class="card">
-    <div class="card-title">Recording</div>
-    <div class="record-section">
-      <div class="timer" id="timer">00:00</div>
-      <button class="record-btn" id="recordBtn" onclick="handleRecordBtn()">🎙️</button>
-      <div class="wave" id="wave"><span></span><span></span><span></span><span></span><span></span></div>
-      <div class="record-status" id="recordStatus">Press button to start recording</div>
-    </div>
-  </div>
-  <div class="error-msg" id="errorMsg"></div>
-  <div class="card progress-section" id="progressSection">
-    <div class="card-title">Processing...</div>
-    <div class="progress-step" id="step1"><span class="step-icon">🎙️</span><span style="font-weight:500;">Converting speech to text</span></div>
-    <div class="progress-step" id="step2" style="padding:16px 18px;"><span class="step-icon">⚡</span><span style="font-weight:500;">Creating summary and key points</span></div>
-  </div>
-  <div class="result-section" id="resultSection">
+
+  <!-- MEETING TAB -->
+  <div id="meeting" class="tab-content active">
     <div class="card">
-      <div class="section-header"><span class="tag">📝 Summary</span><button class="copy-btn" onclick="copyText('summaryBox')">Copy</button></div>
-      <div class="summary-box" id="summaryBox"></div>
-    </div>
-    <div class="card">
-      <div class="section-header"><span class="tag">⭐ Key points</span><button class="copy-btn" onclick="copyText('keyPointsBox')">Copy</button></div>
-      <div class="action-items" id="keyPointsBox"></div>
-    </div>
-    <div class="card">
-      <div class="section-header"><span class="tag">✅ Action items</span><button class="copy-btn" onclick="copyText('actionBox')">Copy</button></div>
-      <div class="action-items" id="actionBox"></div>
-    </div>
-    <div class="card">
-      <div class="section-header"><span class="tag">🎙️ Transcript</span><button class="copy-btn" onclick="copyText('transcriptBox')">Copy</button></div>
-      <div class="transcript-box" id="transcriptBox"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">📄 Create brief</div>
+      <div class="card-title">Meeting Details</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <textarea id="briefRequest" placeholder="What kind of brief do you need? e.g. 'short executive summary' or '3 bullet points for management'"></textarea>
-        <button class="btn btn-secondary" onclick="createBrief()">✨ Generate brief</button>
-      </div>
-      <div class="brief-section" id="briefSection">
-        <div class="section-header"><span class="tag">📄 Brief</span><button class="copy-btn" onclick="copyText('briefBox')">Copy</button></div>
-        <div class="brief-box" id="briefBox"></div>
+        <input type="text" id="meetingTitle" placeholder="Meeting title/topic" />
+        <input type="text" id="meetingParticipants" placeholder="Participants (optional)" />
+        <select id="meetingLanguage">
+          <option value="en">🇬🇧 English</option>
+          <option value="fi">🇫🇮 Suomi</option>
+          <option value="sv">🇸🇪 Svenska</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="ar">🇸🇦 العربية</option>
+        </select>
       </div>
     </div>
-    <button class="btn btn-secondary" onclick="resetAll()">🔄 New meeting</button>
-    <button class="btn btn-danger" onclick="deleteRecording()">🗑️ Delete & start over</button>
+
+    <div class="card">
+      <div class="card-title">Recording</div>
+      <div class="record-section">
+        <div class="timer" id="meetingTimer">00:00</div>
+        <button class="record-btn" id="meetingRecordBtn" onclick="toggleRecording('meeting')">🎙️</button>
+        <div class="wave" id="meetingWave"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="record-status" id="meetingRecordStatus">Press button to start recording</div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="meetingErrorMsg"></div>
+    
+    <div class="card progress-section" id="meetingProgressSection">
+      <div class="card-title">Processing...</div>
+      <div class="progress-step" id="meetingStep1"><span class="step-icon">🎙️</span><span>Converting speech to text</span></div>
+      <div class="progress-step" id="meetingStep2"><span class="step-icon">⚡</span><span>Creating summary</span></div>
+    </div>
+
+    <div class="result-section" id="meetingResultSection">
+      <div class="card">
+        <div class="section-header"><span class="tag">📝 Summary</span><button class="copy-btn" onclick="copyText('meetingSummaryBox')">Copy</button></div>
+        <div class="summary-box" id="meetingSummaryBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><span class="tag">⭐ Key Points</span><button class="copy-btn" onclick="copyText('meetingKeyPointsBox')">Copy</button></div>
+        <div class="action-items" id="meetingKeyPointsBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><span class="tag">✅ Action Items</span><button class="copy-btn" onclick="copyText('meetingActionBox')">Copy</button></div>
+        <div class="action-items" id="meetingActionBox"></div>
+      </div>
+      <button class="btn btn-secondary" onclick="resetMeeting()">🔄 New meeting</button>
+      <button class="btn" style="background:rgba(247,79,106,0.15);color:var(--danger);border:1px solid rgba(247,79,106,0.3);" onclick="deleteMeeting()">🗑️ Delete & start over</button>
+    </div>
+
+    <button class="btn btn-primary" id="meetingGenerateBtn" onclick="generateMeeting()" disabled>✨ Create summary</button>
   </div>
-  <button class="btn btn-primary" id="generateBtn" onclick="generate()" disabled>✨ Create summary</button>
+
+  <!-- CALL TAB -->
+  <div id="call" class="tab-content">
+    <div class="card">
+      <div class="card-title">Call Details</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <input type="text" id="callWith" placeholder="Call with (name/person)" />
+        <input type="text" id="callTopic" placeholder="Call topic/subject" />
+        <select id="callLanguage">
+          <option value="en">🇬🇧 English</option>
+          <option value="fi">🇫🇮 Suomi</option>
+          <option value="sv">🇸🇪 Svenska</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="ar">🇸🇦 العربية</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recording</div>
+      <div class="record-section">
+        <div class="timer" id="callTimer">00:00</div>
+        <button class="record-btn" id="callRecordBtn" onclick="toggleRecording('call')">🎙️</button>
+        <div class="wave" id="callWave"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="record-status" id="callRecordStatus">Press button to start recording</div>
+      </div>
+    </div>
+
+    <div class="error-msg" id="callErrorMsg"></div>
+
+    <div class="card progress-section" id="callProgressSection">
+      <div class="card-title">Processing...</div>
+      <div class="progress-step" id="callStep1"><span class="step-icon">🎙️</span><span>Converting speech to text</span></div>
+      <div class="progress-step" id="callStep2"><span class="step-icon">⚡</span><span>Creating summary</span></div>
+    </div>
+
+    <div class="result-section" id="callResultSection">
+      <div class="card">
+        <div class="section-header"><span class="tag">📝 Summary</span><button class="copy-btn" onclick="copyText('callSummaryBox')">Copy</button></div>
+        <div class="summary-box" id="callSummaryBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><span class="tag">⭐ Key Points</span><button class="copy-btn" onclick="copyText('callKeyPointsBox')">Copy</button></div>
+        <div class="action-items" id="callKeyPointsBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-header"><span class="tag">✅ Action Items</span><button class="copy-btn" onclick="copyText('callActionBox')">Copy</button></div>
+        <div class="action-items" id="callActionBox"></div>
+      </div>
+      <button class="btn btn-secondary" onclick="resetCall()">🔄 New call</button>
+      <button class="btn" style="background:rgba(247,79,106,0.15);color:var(--danger);border:1px solid rgba(247,79,106,0.3);" onclick="deleteCall()">🗑️ Delete & start over</button>
+    </div>
+
+    <button class="btn btn-primary" id="callGenerateBtn" onclick="generateCall()" disabled>✨ Create summary</button>
+  </div>
 </div>
+
 <script>
-let mediaRecorder=null,audioChunks=[],isRecording=false,timerInterval=null,seconds=0,audioBlob=null,currentTranscript='';
-function handleRecordBtn(){toggleRecording().catch(e=>showError('Microphone error: '+e.name+' - '+e.message));}
-function updateTimer(){seconds++;const m=String(Math.floor(seconds/60)).padStart(2,'0');const s=String(seconds%60).padStart(2,'0');document.getElementById('timer').textContent=m+':'+s;}
-async function toggleRecording(){
-  if(!isRecording){
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    mediaRecorder=new MediaRecorder(stream);audioChunks=[];
-    mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
-    mediaRecorder.onstop=()=>{audioBlob=new Blob(audioChunks,{type:'audio/webm'});document.getElementById('generateBtn').disabled=false;};
-    mediaRecorder.start();isRecording=true;seconds=0;timerInterval=setInterval(updateTimer,1000);
-    document.getElementById('recordBtn').classList.add('recording');document.getElementById('recordBtn').textContent='⏹️';
-    document.getElementById('recordStatus').textContent='Recording...';document.getElementById('recordStatus').classList.add('active');
-    document.getElementById('timer').classList.add('visible');document.getElementById('wave').classList.add('visible');
-  }else{
-    mediaRecorder.stop();mediaRecorder.stream.getTracks().forEach(t=>t.stop());isRecording=false;clearInterval(timerInterval);
-    document.getElementById('recordBtn').classList.remove('recording');document.getElementById('recordBtn').textContent='🎙️';
-    document.getElementById('recordStatus').textContent='Recording done ('+document.getElementById('timer').textContent+')';
-    document.getElementById('recordStatus').classList.remove('active');document.getElementById('wave').classList.remove('visible');
+let mediaRecorder = null, audioChunks = [], isRecording = false, timerInterval = null, seconds = 0;
+let meetingAudio = null, callAudio = null;
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function updateTimer(type) {
+  seconds++;
+  const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  document.getElementById(type + 'Timer').textContent = m + ':' + s;
+}
+
+async function toggleRecording(type) {
+  const btnId = type + 'RecordBtn';
+  const statusId = type + 'RecordStatus';
+  const timerId = type + 'Timer';
+  const waveId = type + 'Wave';
+
+  if (!isRecording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunks, {type: 'audio/webm'});
+        if (type === 'meeting') meetingAudio = blob;
+        else callAudio = blob;
+        document.getElementById(type + 'GenerateBtn').disabled = false;
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      seconds = 0;
+      timerInterval = setInterval(() => updateTimer(type), 1000);
+      document.getElementById(btnId).classList.add('recording');
+      document.getElementById(btnId).textContent = '⏹️';
+      document.getElementById(statusId).textContent = 'Recording...';
+      document.getElementById(statusId).classList.add('active');
+      document.getElementById(timerId).classList.add('visible');
+      document.getElementById(waveId).classList.add('visible');
+    } catch (e) {
+      showError(type, 'Microphone not available. Check browser permissions.');
+    }
+  } else {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    isRecording = false;
+    clearInterval(timerInterval);
+    document.getElementById(btnId).classList.remove('recording');
+    document.getElementById(btnId).textContent = '🎙️';
+    document.getElementById(statusId).textContent = 'Recording done (' + document.getElementById(timerId).textContent + ')';
+    document.getElementById(statusId).classList.remove('active');
+    document.getElementById(waveId).classList.remove('visible');
   }
 }
-function setStep(num,status){const el=document.getElementById('step'+num);el.classList.remove('active','done');if(status==='active'){el.classList.add('active');el.querySelector('.step-icon').innerHTML='<div class="spinner"></div>';}else if(status==='done'){el.classList.add('done');el.querySelector('.step-icon').textContent='✅';}}
-async function generate(){
-  if(!audioBlob)return;hideError();
-  document.getElementById('generateBtn').style.display='none';document.getElementById('progressSection').classList.add('visible');document.getElementById('resultSection').classList.remove('visible');
-  setStep(1,'active');setStep(2,'');
-  const formData=new FormData();formData.append('audio',audioBlob,'recording.webm');
-  formData.append('meeting_title',document.getElementById('meetingTitle').value);
-  formData.append('participants',document.getElementById('participants').value);
-  formData.append('language',document.getElementById('meetingLanguage').value);
-  try{
-    const resp=await fetch('/transcribe',{method:'POST',body:formData});const data=await resp.json();if(!resp.ok)throw new Error(data.error||'Transcription failed');
-    setStep(1,'done');setStep(2,'active');document.getElementById('transcriptBox').textContent=data.transcript;currentTranscript=data.transcript;
-    const resp2=await fetch('/summarize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript:data.transcript,meeting_title:document.getElementById('meetingTitle').value,participants:document.getElementById('participants').value,language:document.getElementById('meetingLanguage').value})});
-    const data2=await resp2.json();if(!resp2.ok)throw new Error(data2.error||'Summary failed');
-    setStep(2,'done');
-    document.getElementById('summaryBox').textContent=data2.summary;
-    const keyBox=document.getElementById('keyPointsBox');keyBox.innerHTML='';
-    if(data2.key_points&&data2.key_points.length>0){data2.key_points.forEach((item,i)=>{const div=document.createElement('div');div.className='action-item';div.innerHTML='<span class="action-num">'+( i+1)+'.</span><span>'+item+'</span>';keyBox.appendChild(div);});}
-    else{keyBox.innerHTML='<div style="color:var(--text2);font-size:14px">No key points identified.</div>';}
-    const actionBox=document.getElementById('actionBox');actionBox.innerHTML='';
-    if(data2.action_items&&data2.action_items.length>0){data2.action_items.forEach((item,i)=>{const div=document.createElement('div');div.className='action-item';div.innerHTML='<span class="action-num">'+(i+1)+'.</span><span>'+item+'</span>';actionBox.appendChild(div);});}
-    else{actionBox.innerHTML='<div style="color:var(--text2);font-size:14px">No action items identified.</div>';}
-    setTimeout(()=>{document.getElementById('progressSection').classList.remove('visible');document.getElementById('resultSection').classList.add('visible');},600);
-  }catch(e){document.getElementById('progressSection').classList.remove('visible');document.getElementById('generateBtn').style.display='flex';showError(e.message);}
+
+function setStep(type, num, status) {
+  const el = document.getElementById(type + 'Step' + num);
+  el.classList.remove('active', 'done');
+  if (status === 'active') {
+    el.classList.add('active');
+    el.querySelector('.step-icon').innerHTML = '<div class="spinner"></div>';
+  } else if (status === 'done') {
+    el.classList.add('done');
+    el.querySelector('.step-icon').textContent = '✅';
+  }
 }
-async function createBrief(){
-  const request=document.getElementById('briefRequest').value.trim();
-  if(!request||!currentTranscript){showError('Please record a meeting first and describe what brief you need.');return;}
-  const btn=document.querySelector('[onclick="createBrief()"]');btn.disabled=true;btn.textContent='Generating...';
-  try{
-    const resp=await fetch('/brief',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transcript:currentTranscript,request,language:document.getElementById('meetingLanguage').value})});
-    const data=await resp.json();if(!resp.ok)throw new Error(data.error||'Brief failed');
-    document.getElementById('briefBox').textContent=data.brief;
-    document.getElementById('briefSection').classList.add('visible');
-  }catch(e){showError(e.message);}
-  btn.disabled=false;btn.textContent='✨ Generate brief';
+
+async function generateMeeting() {
+  if (!meetingAudio) return;
+  hideError('meeting');
+  document.getElementById('meetingGenerateBtn').style.display = 'none';
+  document.getElementById('meetingProgressSection').classList.add('visible');
+  document.getElementById('meetingResultSection').classList.remove('visible');
+  setStep('meeting', 1, 'active');
+  setStep('meeting', 2, '');
+
+  const formData = new FormData();
+  formData.append('audio', meetingAudio, 'recording.webm');
+  formData.append('title', document.getElementById('meetingTitle').value);
+  formData.append('participants', document.getElementById('meetingParticipants').value);
+  formData.append('language', document.getElementById('meetingLanguage').value);
+
+  try {
+    const resp = await fetch('/transcribe', {method: 'POST', body: formData});
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Transcription failed');
+    setStep('meeting', 1, 'done');
+    setStep('meeting', 2, 'active');
+
+    const resp2 = await fetch('/summarize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        transcript: data.transcript,
+        title: document.getElementById('meetingTitle').value,
+        participants: document.getElementById('meetingParticipants').value,
+        language: document.getElementById('meetingLanguage').value
+      })
+    });
+    const data2 = await resp2.json();
+    if (!resp2.ok) throw new Error(data2.error || 'Summary failed');
+    setStep('meeting', 2, 'done');
+
+    document.getElementById('meetingSummaryBox').textContent = data2.summary;
+    
+    const keyBox = document.getElementById('meetingKeyPointsBox');
+    keyBox.innerHTML = '';
+    if (data2.key_points && data2.key_points.length > 0) {
+      data2.key_points.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'action-item';
+        div.innerHTML = '<span class="action-num">' + (i + 1) + '.</span><span>' + item + '</span>';
+        keyBox.appendChild(div);
+      });
+    } else {
+      keyBox.innerHTML = '<div style="color:var(--text2);font-size:14px">No key points identified.</div>';
+    }
+
+    const actionBox = document.getElementById('meetingActionBox');
+    actionBox.innerHTML = '';
+    if (data2.action_items && data2.action_items.length > 0) {
+      data2.action_items.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'action-item';
+        div.innerHTML = '<span class="action-num">' + (i + 1) + '.</span><span>' + item + '</span>';
+        actionBox.appendChild(div);
+      });
+    } else {
+      actionBox.innerHTML = '<div style="color:var(--text2);font-size:14px">No action items identified.</div>';
+    }
+
+    setTimeout(() => {
+      document.getElementById('meetingProgressSection').classList.remove('visible');
+      document.getElementById('meetingResultSection').classList.add('visible');
+    }, 600);
+  } catch (e) {
+    document.getElementById('meetingProgressSection').classList.remove('visible');
+    document.getElementById('meetingGenerateBtn').style.display = 'flex';
+    showError('meeting', e.message);
+  }
 }
-function copyText(id){const el=document.getElementById(id);let text=el.textContent||el.innerText;if(id==='actionBox'||id==='keyPointsBox'){text=Array.from(el.querySelectorAll('.action-item')).map(a=>a.textContent.trim()).join('\\n');}navigator.clipboard.writeText(text).then(()=>{const btn=el.closest('.card').querySelector('.copy-btn');if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',2000);}});}
-function deleteRecording(){if(confirm('Delete this recording and start over?')){resetAll();}}
-function resetAll(){audioBlob=null;currentTranscript='';seconds=0;document.getElementById('timer').textContent='00:00';document.getElementById('timer').classList.remove('visible');document.getElementById('recordStatus').textContent='Press button to start recording';document.getElementById('recordStatus').classList.remove('active');document.getElementById('generateBtn').disabled=true;document.getElementById('generateBtn').style.display='flex';document.getElementById('resultSection').classList.remove('visible');document.getElementById('progressSection').classList.remove('visible');document.getElementById('briefSection').classList.remove('visible');hideError();}
-function showError(msg){const el=document.getElementById('errorMsg');el.textContent='⚠️ '+msg;el.classList.add('visible');}
-function hideError(){document.getElementById('errorMsg').classList.remove('visible');}
+
+async function generateCall() {
+  if (!callAudio) return;
+  hideError('call');
+  document.getElementById('callGenerateBtn').style.display = 'none';
+  document.getElementById('callProgressSection').classList.add('visible');
+  document.getElementById('callResultSection').classList.remove('visible');
+  setStep('call', 1, 'active');
+  setStep('call', 2, '');
+
+  const formData = new FormData();
+  formData.append('audio', callAudio, 'recording.webm');
+  formData.append('title', document.getElementById('callTopic').value);
+  formData.append('with', document.getElementById('callWith').value);
+  formData.append('language', document.getElementById('callLanguage').value);
+
+  try {
+    const resp = await fetch('/transcribe', {method: 'POST', body: formData});
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Transcription failed');
+    setStep('call', 1, 'done');
+    setStep('call', 2, 'active');
+
+    const resp2 = await fetch('/summarize', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        transcript: data.transcript,
+        title: document.getElementById('callTopic').value,
+        with: document.getElementById('callWith').value,
+        language: document.getElementById('callLanguage').value
+      })
+    });
+    const data2 = await resp2.json();
+    if (!resp2.ok) throw new Error(data2.error || 'Summary failed');
+    setStep('call', 2, 'done');
+
+    document.getElementById('callSummaryBox').textContent = data2.summary;
+    
+    const keyBox = document.getElementById('callKeyPointsBox');
+    keyBox.innerHTML = '';
+    if (data2.key_points && data2.key_points.length > 0) {
+      data2.key_points.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'action-item';
+        div.innerHTML = '<span class="action-num">' + (i + 1) + '.</span><span>' + item + '</span>';
+        keyBox.appendChild(div);
+      });
+    }
+
+    const actionBox = document.getElementById('callActionBox');
+    actionBox.innerHTML = '';
+    if (data2.action_items && data2.action_items.length > 0) {
+      data2.action_items.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'action-item';
+        div.innerHTML = '<span class="action-num">' + (i + 1) + '.</span><span>' + item + '</span>';
+        actionBox.appendChild(div);
+      });
+    }
+
+    setTimeout(() => {
+      document.getElementById('callProgressSection').classList.remove('visible');
+      document.getElementById('callResultSection').classList.add('visible');
+    }, 600);
+  } catch (e) {
+    document.getElementById('callProgressSection').classList.remove('visible');
+    document.getElementById('callGenerateBtn').style.display = 'flex';
+    showError('call', e.message);
+  }
+}
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  let text = el.textContent || el.innerText;
+  if (id.includes('ActionBox') || id.includes('KeyPointsBox')) {
+    text = Array.from(el.querySelectorAll('.action-item')).map(a => a.textContent.trim()).join('\\n');
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.closest('.card').querySelector('.copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    }
+  });
+}
+
+function deleteMeeting() {
+  if (confirm('Delete this recording?')) resetMeeting();
+}
+
+function deleteCall() {
+  if (confirm('Delete this recording?')) resetCall();
+}
+
+function resetMeeting() {
+  meetingAudio = null;
+  seconds = 0;
+  document.getElementById('meetingTimer').textContent = '00:00';
+  document.getElementById('meetingTimer').classList.remove('visible');
+  document.getElementById('meetingRecordStatus').textContent = 'Press button to start recording';
+  document.getElementById('meetingRecordStatus').classList.remove('active');
+  document.getElementById('meetingGenerateBtn').disabled = true;
+  document.getElementById('meetingGenerateBtn').style.display = 'flex';
+  document.getElementById('meetingResultSection').classList.remove('visible');
+  document.getElementById('meetingProgressSection').classList.remove('visible');
+  hideError('meeting');
+}
+
+function resetCall() {
+  callAudio = null;
+  seconds = 0;
+  document.getElementById('callTimer').textContent = '00:00';
+  document.getElementById('callTimer').classList.remove('visible');
+  document.getElementById('callRecordStatus').textContent = 'Press button to start recording';
+  document.getElementById('callRecordStatus').classList.remove('active');
+  document.getElementById('callGenerateBtn').disabled = true;
+  document.getElementById('callGenerateBtn').style.display = 'flex';
+  document.getElementById('callResultSection').classList.remove('visible');
+  document.getElementById('callProgressSection').classList.remove('visible');
+  hideError('call');
+}
+
+function showError(type, msg) {
+  const el = document.getElementById(type + 'ErrorMsg');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('visible');
+}
+
+function hideError(type) {
+  document.getElementById(type + 'ErrorMsg').classList.remove('visible');
+}
 </script>
 </body>
 </html>"""
-
-SUMMARY_SYSTEM = """You are a professional meeting assistant. You are given a transcript of a meeting.
-
-Always respond in the same language as the transcript. If mixed languages, use the dominant one.
-
-Return ONLY this JSON:
-{
-  "summary": "Clear summary of the meeting (3-6 sentences). Cover main topics, decisions and key discussion points.",
-  "key_points": [
-    "Key point 1",
-    "Key point 2"
-  ],
-  "action_items": [
-    "Action item 1 - who does what",
-    "Action item 2 - who does what"
-  ]
-}
-
-key_points are the most important facts or decisions from the meeting.
-action_items are concrete tasks agreed upon. Return empty list [] if none.
-Respond ONLY with JSON, no other text."""
-
-BRIEF_SYSTEM = """You are a professional meeting assistant. Create a brief based on the meeting transcript and the user's request.
-
-Always respond in the same language as the transcript.
-Be concise and professional.
-Respond with only the brief text, no preamble."""
 
 AUTH_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -409,7 +759,6 @@ PRICING_HTML = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MediMeeting — Pricing</title>
-<script src="https://js.stripe.com/v3/"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
   :root { --bg:#0f1117; --surface:#1a1d27; --surface2:#22263a; --accent:#4f8ef7; --accent2:#7c6af7; --text:#e8eaf0; --text2:#8b90a8; --success:#4fca7a; --danger:#f74f6a; --border:rgba(255,255,255,0.07); }
@@ -439,13 +788,12 @@ PRICING_HTML = """<!DOCTYPE html>
   .btn { width:100%; padding:14px; border-radius:12px; border:none; font-family:'DM Sans',sans-serif; font-size:15px; font-weight:600; cursor:pointer; }
   .btn-primary { background:linear-gradient(135deg,var(--accent),var(--accent2)); color:white; }
   .btn:disabled { opacity:0.6; cursor:not-allowed; }
-  .current-plan { text-align:center; padding:8px; background:rgba(79,202,122,0.15); border-radius:8px; color:var(--success); font-size:13px; font-weight:600; margin-top:8px; }
 </style>
 </head>
 <body>
 <div class="header">
   <div class="logo">🤝</div>
-  <div class="header-text"><h1>MediMeeting</h1><p>Record and summarize</p></div>
+  <div class="header-text"><h1>MediMeeting</h1><p>Meetings & Calls</p></div>
   <div class="nav-links">
     <a href="/" class="nav-link">🤝 App</a>
     <a href="/logout" class="nav-link">Sign out</a>
@@ -458,13 +806,12 @@ PRICING_HTML = """<!DOCTYPE html>
     <div class="plan">
       <div class="plan-name">Starter</div>
       <div class="plan-price">49€<span>/mo</span></div>
-      <div class="plan-desc">Perfect for individual use</div>
+      <div class="plan-desc">Perfect for individuals</div>
       <ul class="features">
         <li><span class="check">✓</span> Unlimited recordings</li>
-        <li><span class="check">✓</span> AI meeting summaries</li>
-        <li><span class="check">✓</span> Key points extraction</li>
+        <li><span class="check">✓</span> AI summaries</li>
+        <li><span class="check">✓</span> Key points</li>
         <li><span class="check">✓</span> Action items</li>
-        <li><span class="check">✓</span> Custom briefs</li>
         <li><span class="check">✓</span> 5 languages</li>
       </ul>
       <button class="btn btn-primary" onclick="subscribe('starter')">Get started</button>
@@ -473,33 +820,41 @@ PRICING_HTML = """<!DOCTYPE html>
       <div class="popular-badge">Most popular</div>
       <div class="plan-name">Pro</div>
       <div class="plan-price">89€<span>/mo</span></div>
-      <div class="plan-desc">For teams and organizations</div>
+      <div class="plan-desc">For teams</div>
       <ul class="features">
         <li><span class="check">✓</span> Everything in Starter</li>
         <li><span class="check">✓</span> Up to 5 users</li>
         <li><span class="check">✓</span> Priority support</li>
         <li><span class="check">✓</span> Custom branding</li>
-        <li><span class="check">✓</span> Usage analytics</li>
-        <li><span class="check">✓</span> Export to PDF/Word</li>
+        <li><span class="check">✓</span> Analytics</li>
       </ul>
       <button class="btn btn-primary" onclick="subscribe('pro')">Get started</button>
     </div>
   </div>
 </div>
 <script>
-const stripe = Stripe('{{ stripe_public_key }}');
-async function subscribe(plan){
-  const btn=event.target;btn.disabled=true;btn.textContent='Loading...';
-  try{
-    const resp=await fetch('/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plan})});
-    const data=await resp.json();
-    if(data.url)window.location.href=data.url;else throw new Error(data.error||'Error');
-  }catch(e){alert('Error: '+e.message);btn.disabled=false;btn.textContent='Get started';}
+async function subscribe(plan) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  try {
+    const resp = await fetch('/create-checkout-session', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({plan})});
+    const data = await resp.json();
+    if (data.url) window.location.href = data.url;
+    else throw new Error(data.error || 'Error');
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Get started';
+  }
 }
 </script>
 </body>
 </html>"""
 
+# ============================================================================
+# ROUTES - AUTH
+# ============================================================================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -525,7 +880,6 @@ def login():
       <button class="btn" type="submit">Sign in</button>
     </form>'''
     return render_template_string(AUTH_HTML.format(title="Sign in", msg=msg, form=form, link='<a href="/register">No account? Register</a>'))
-
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -557,12 +911,14 @@ def register():
     </form>'''
     return render_template_string(AUTH_HTML.format(title="Create account", msg=msg, form=form, link='<a href="/login">Already have an account? Sign in</a>'))
 
-
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect("/login")
 
+# ============================================================================
+# ROUTES - ADMIN
+# ============================================================================
 
 @app.route("/admin")
 def admin():
@@ -587,7 +943,6 @@ def admin():
         users_html = '<p style="color:#8b90a8;font-size:14px">No users yet.</p>'
     return render_template_string(ADMIN_HTML.format(users=users_html))
 
-
 @app.route("/admin/approve", methods=["POST"])
 def admin_approve():
     if session.get("user_email") != ADMIN_EMAIL:
@@ -598,7 +953,6 @@ def admin_approve():
         user["status"] = "approved"
         redis_set(f"mm:user:{email}", user)
     return redirect("/admin")
-
 
 @app.route("/admin/reject", methods=["POST"])
 def admin_reject():
@@ -611,12 +965,14 @@ def admin_reject():
         pass
     return redirect("/admin")
 
+# ============================================================================
+# ROUTES - APP
+# ============================================================================
 
 @app.route("/")
 @login_required
 def index():
     return render_template_string(MAIN_HTML)
-
 
 @app.route("/pricing")
 @login_required
@@ -626,44 +982,9 @@ def pricing():
     plan = user.get("plan", "none") if user else "none"
     return render_template_string(PRICING_HTML, stripe_public_key=STRIPE_PUBLIC_KEY, plan=plan)
 
-
-@app.route("/create-checkout-session", methods=["POST"])
-@login_required
-def create_checkout_session():
-    plan = request.json.get("plan", "starter")
-    user_email = session.get("user_email", "")
-    prices = {"starter": 4900, "pro": 8900}
-    price = prices.get(plan, 4900)
-    try:
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            line_items=[{"price_data": {"currency": "eur", "product_data": {"name": f"MediMeeting {plan.capitalize()}"}, "unit_amount": price, "recurring": {"interval": "month"}}, "quantity": 1}],
-            mode="subscription",
-            success_url="https://medimeeting-production.up.railway.app/payment-success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://medimeeting-production.up.railway.app/pricing",
-            customer_email=user_email,
-        )
-        return jsonify({"url": checkout_session.url})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/payment-success")
-@login_required
-def payment_success():
-    session_id = request.args.get("session_id")
-    user_email = session.get("user_email", "")
-    try:
-        checkout_session = stripe.checkout.Session.retrieve(session_id)
-        if checkout_session.payment_status == "paid":
-            user = redis_get(f"mm:user:{user_email}")
-            if user:
-                user["plan"] = "active"
-                redis_set(f"mm:user:{user_email}", user)
-    except Exception as e:
-        log.error(f"Payment success error: {e}")
-    return redirect("/")
-
+# ============================================================================
+# ROUTES - API
+# ============================================================================
 
 @app.route("/transcribe", methods=["POST"])
 @login_required
@@ -686,27 +1007,18 @@ def transcribe():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/summarize", methods=["POST"])
 @login_required
 def summarize():
     data = request.json
     transcript = data.get("transcript", "")
-    meeting_title = data.get("meeting_title", "")
-    participants = data.get("participants", "")
     language = data.get("language", "en")
-    context = ""
-    if meeting_title:
-        context += f"Meeting topic: {meeting_title}\n"
-    if participants:
-        context += f"Participants: {participants}\n"
-    if context:
-        context += "\n"
+    system = MEETING_SYSTEM.get(language, MEETING_SYSTEM["en"])
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
             headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 1500, "system": SUMMARY_SYSTEM, "messages": [{"role": "user", "content": f"{context}Transcript:\n\n{transcript}"}]},
+            json={"model": "claude-sonnet-4-20250514", "max_tokens": 1500, "system": system, "messages": [{"role": "user", "content": f"Transcript:\n\n{transcript}"}]},
             timeout=30
         )
         raw = resp.json()["content"][0]["text"].strip().replace("```json", "").replace("```", "").strip()
@@ -716,47 +1028,62 @@ def summarize():
         log.error(f"Summarize error: {e}")
         return jsonify({"error": "Summary creation failed"}), 500
 
-
-@app.route("/brief", methods=["POST"])
+@app.route("/create-checkout-session", methods=["POST"])
 @login_required
-def brief():
-    data = request.json
-    transcript = data.get("transcript", "")
-    brief_request = data.get("request", "")
-    language = data.get("language", "en")
+def create_checkout_session():
+    plan = request.json.get("plan", "starter")
+    user_email = session.get("user_email", "")
+    prices = {"starter": 4900, "pro": 8900}
+    price = prices.get(plan, 4900)
     try:
-        resp = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01"},
-            json={"model": "claude-sonnet-4-20250514", "max_tokens": 1000, "system": BRIEF_SYSTEM, "messages": [{"role": "user", "content": f"Meeting transcript:\n\n{transcript}\n\nBrief request: {brief_request}"}]},
-            timeout=30
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=["card"],
+            line_items=[{"price_data": {"currency": "eur", "product_data": {"name": f"MediMeeting {plan.capitalize()}"}, "unit_amount": price, "recurring": {"interval": "month"}}, "quantity": 1}],
+            mode="subscription",
+            success_url="https://medimeeting-production.up.railway.app/payment-success?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://medimeeting-production.up.railway.app/pricing",
+            customer_email=user_email,
         )
-        brief_text = resp.json()["content"][0]["text"].strip()
-        return jsonify({"brief": brief_text})
+        return jsonify({"url": checkout_session.url})
     except Exception as e:
-        log.error(f"Brief error: {e}")
-        return jsonify({"error": "Brief creation failed"}), 500
+        return jsonify({"error": str(e)}), 500
 
+@app.route("/payment-success")
+@login_required
+def payment_success():
+    session_id = request.args.get("session_id")
+    user_email = session.get("user_email", "")
+    try:
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+        if checkout_session.payment_status == "paid":
+            user = redis_get(f"mm:user:{user_email}")
+            if user:
+                user["plan"] = "active"
+                redis_set(f"mm:user:{user_email}", user)
+    except Exception as e:
+        log.error(f"Payment success error: {e}")
+    return redirect("/")
 
 @app.route("/manifest.json")
 def manifest():
-    return jsonify({"name": "MediMeeting", "short_name": "MediMeeting", "description": "Record and summarize meetings", "start_url": "/", "display": "standalone", "background_color": "#0f1117", "theme_color": "#0f1117", "orientation": "portrait", "icons": [{"src": "/icon", "sizes": "192x192", "type": "image/png"}]})
-
+    return jsonify({"name": "MediMeeting", "short_name": "MediMeeting", "description": "Meetings and calls", "start_url": "/", "display": "standalone", "background_color": "#0f1117", "theme_color": "#0f1117", "orientation": "portrait", "icons": [{"src": "/icon", "sizes": "192x192", "type": "image/png"}]})
 
 @app.route("/icon")
 def icon():
     svg = '<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="#1a1d27"/><text x="96" y="130" font-size="100" text-anchor="middle">🤝</text></svg>'
     return svg, 200, {"Content-Type": "image/svg+xml"}
 
-
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
 
+# ============================================================================
+# ADMIN INITIALIZATION
+# ============================================================================
 
 def ensure_admin():
     try:
-        admin_email = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.fi")  # ✅ KORJATTU: Lisätty oletus-arvo
+        admin_email = os.environ.get("ADMIN_EMAIL", "admin@medimeeting.app")
         admin_hash = os.environ.get("ADMIN_PASSWORD_HASH", "b473debca72c06e903436ef305caa697ae7c50a03025e668a6a75eef96afe10f")
         existing = redis_get(f"mm:user:{admin_email}")
         if not existing:
@@ -767,14 +1094,13 @@ def ensure_admin():
                 "created": datetime.now().isoformat()
             })
             log.info(f"Admin created: {admin_email}")
-        elif existing.get("status") != "approved" or existing.get("password") != admin_hash:  # ✅ PARANNETTU: Tarkistetaan myös password
+        elif existing.get("status") != "approved" or existing.get("password") != admin_hash:
             existing["status"] = "approved"
             existing["password"] = admin_hash
             redis_set(f"mm:user:{admin_email}", existing)
             log.info(f"Admin fixed: {admin_email}")
     except Exception as e:
         log.error(f"ensure_admin error: {e}")
-
 
 with app.app_context():
     ensure_admin()
